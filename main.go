@@ -12,6 +12,10 @@ import (
     "context"
     "cloud.google.com/go/storage"
     "io"
+    "github.com/auth0/go-jwt-middleware"
+    "github.com/form3tech-oss/jwt-go"
+    "github.com/gorilla/mux"
+
 )
 
 type Location struct {
@@ -38,6 +42,9 @@ const (
     ES_URL = "http://34.136.21.75:9200"
 
 )
+
+var mySigningKey = []byte("secret")
+
 
 func main() {
     // Create a client
@@ -73,9 +80,28 @@ func main() {
 	}
 
     fmt.Println("started-service")
-    http.HandleFunc("/post", handlerPost)
-    http.HandleFunc("/search", handlerSearch)
-    log.Fatal(http.ListenAndServe(":8080", nil))
+
+    r := mux.NewRouter()
+
+
+	jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
+		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
+			return mySigningKey, nil
+		},
+		// When set, the middleware verifies that tokens are signed with the specific signing algorithm
+		// If the signing method is not constant the ValidationKeyGetter callback can be used to implement additional checks
+		// Important to avoid security issues described here: https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
+		SigningMethod: jwt.SigningMethodHS256,
+	})
+
+      r.Handle("/post", jwtMiddleware.Handler(http.HandlerFunc(handlerPost))).Methods("POST")
+      r.Handle("/search", jwtMiddleware.Handler(http.HandlerFunc(handlerSearch))).Methods("GET")
+      r.Handle("/login", http.HandlerFunc(loginHandler)).Methods("POST")
+      r.Handle("/signup", http.HandlerFunc(signupHandler)).Methods("POST")
+
+      http.Handle("/", r)
+      log.Fatal(http.ListenAndServe(":8080", nil))
+
 }
 
 
@@ -85,6 +111,11 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Access-Control-Allow-Origin", "*")
     w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
+    
+    user := r.Context().Value("user")
+    claims := user.(*jwt.Token).Claims
+    username := claims.(jwt.MapClaims)["username"]
+
     r.ParseMultipartForm(32 << 20)
 
     //Parse
@@ -93,7 +124,7 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
     lon, _ := strconv.ParseFloat(r.FormValue("lon"), 64)
 
     p := &Post {
-        User: "1111",
+        User: username.(string),
         Message: r.FormValue("message"),
         Location: Location {
             Lat: lat,
