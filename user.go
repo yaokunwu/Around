@@ -113,6 +113,7 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
     if u.Username != "" && u.Password != "" && usernamePattern(u.Username) {
         if addUser(u) {
             fmt.Println("User added successfully")
+            //can only transmit byte in network
             w.Write([]byte("User added successfully"))
         } else {
             fmt.Println("Failed to add a new user")
@@ -144,7 +145,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
              claims := token.Claims.(jwt.MapClaims)
              /* Set token claims */
              claims["username"] = u.Username
-             claims["exp"] = time.Now().Add(time.Hour * 24).Unix()
+             claims["exp"] = time.Now().Add(time.Minute * 40).Unix()
 
              /* Sign the token with our secret */
              tokenString, _ := token.SignedString(mySigningKey)
