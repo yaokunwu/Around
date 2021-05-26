@@ -145,7 +145,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
              claims := token.Claims.(jwt.MapClaims)
              /* Set token claims */
              claims["username"] = u.Username
-             claims["exp"] = time.Now().Add(time.Minute * 40).Unix()
+             claims["exp"] = time.Now().Add(time.Hour * 48).Unix()
 
              /* Sign the token with our secret */
              tokenString, _ := token.SignedString(mySigningKey)
