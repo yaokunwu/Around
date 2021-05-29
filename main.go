@@ -1,6 +1,7 @@
 package main 
 
 import (
+    "path/filepath"
     "fmt"
     "log"
     "encoding/json"
@@ -29,7 +30,16 @@ type Post struct {
     Message string `json:"message"`
     Location Location `json:"location"`
     Url string `json:"url"`
+    Type string `json:"type"`
+    Face float64 `json:"face"`
 }
+
+var (
+    mediaTypes = map[string]string {
+        ".jpeg": "image",
+    }
+    
+)
 
 const (
     DISTANCE = "200km"
@@ -40,7 +50,7 @@ const (
     PROJECT_ID = "around-314619"
     BT_INSTANCE = "around-post"
     // Needs to update this URL if you deploy it to cloud.
-    ES_URL = "http://34.136.21.75:9200"
+    ES_URL = "http://34.136.163.26:9200"
 
 )
 
@@ -156,11 +166,31 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
         panic(err)
     }
 
+    im, header, _ := r.FormFile("image")
+    defer im.Close()
+    suffix := filepath.Ext(header.Filename)
+
+    if t, ok := mediaTypes[suffix]; ok {
+        p.Type = t
+    } else {
+        p.Type = "unknown"
+    }
+
+    if suffix == ".jpeg" {
+        if score, err := annotate(im); err != nil {
+            http.Error(w, "Failed", http.StatusInternalServerError)
+            fmt.Printf("Failed to annotate")
+            return
+        } else {
+            p.Face = score
+        }
+    }
+
     p.Url = attrs.MediaLink
     
     saveToES(p, id)
 
-    saveToBigTable(p, id)
+//    saveToBigTable(p, id)
 }
 
 
