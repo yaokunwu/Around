@@ -37,6 +37,14 @@ type Post struct {
 var (
     mediaTypes = map[string]string {
         ".jpeg": "image",
+        ".jpg": "image",
+        ".gif": "image",
+        ".png": "image",
+        ".mov": "video",
+        ".mp4": "video",
+        ".avi": "video",
+        ".flv": "video",
+        ".wmv": "video",
     }
     
 )
@@ -109,6 +117,7 @@ func main() {
       r.Handle("/search", jwtMiddleware.Handler(http.HandlerFunc(handlerSearch))).Methods("GET")
       r.Handle("/login", http.HandlerFunc(loginHandler)).Methods("POST")
       r.Handle("/signup", http.HandlerFunc(signupHandler)).Methods("POST")
+      r.Handle("/cluster", jwtMiddleware.Handler(http.HandlerFunc(handlerCluster))).Methods("GET")
 
       http.Handle("/", r)
       log.Fatal(http.ListenAndServe(":8080", nil))
@@ -326,4 +335,48 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Access-Control-Allow-Origin", "*")
     w.Write(js)
 
+}
+
+
+func handlerCluster(w http.ResponseWriter, r *http.Request) {
+    
+    fmt.Println("Received one request for search.")
+    client, err := elastic.NewClient(elastic.SetURL(ES_URL), elastic.SetSniff(false))
+    if err != nil {
+        panic(err)
+    }
+
+    term := r.URL.Query().Get("term")
+    
+    q := elastic.NewRangeQuery(term).Gte(0.8)
+
+    searchResult, err := client.Search().
+        Index(INDEX).
+        Query(q).
+        Pretty(true).
+        Do()
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println("Query took %d millisecconds\n", searchResult.TookInMillis)
+    fmt.Printf("Found a total of %d posts\n", searchResult.TotalHits())
+
+    var typ Post
+    var ps []Post
+    for _, item := range searchResult.Each(reflect.TypeOf(typ)) {
+        p := item.(Post)
+        fmt.Printf("Post by %s: %s at lat %v and lon %v\n", p.User, p.Message, p.Location.Lat, p.Location.Lon)
+
+        ps = append(ps, p)
+    }
+
+    js, err := json.Marshal(ps)
+    if err != nil {
+        panic(err)
+    }
+
+    w.Header().Set("Content-Type","application/json")
+    w.Header().Set("Access-Control-Allow-Origin", "*")
+    w.Write(js)
 }
